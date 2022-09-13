@@ -1,0 +1,11 @@
+#!/bin/bash 
+
+# if conda is not in your path you might want to 
+# point the following line to your anaconda installation
+# source ~/tools/anaconda3/etc/profile.d/conda.sh
+
+cd $SLACKSD_STABLE_DIFFUSION_PATH
+
+conda activate ldm
+
+python scripts/dream.py --gfpgan_dir ../GFPGAN/ --outdir $SLACKSD_STABLE_DIFFUSION_RESULTS --from_file -
