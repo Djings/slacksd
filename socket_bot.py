@@ -255,7 +255,10 @@ def process_slack_reply(client : SocketModeClient, message, raw_message):
     if len(full_output) > 0:
       blocks = split_blocks(full_output, "```", "```")
     else:
-      blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"```Unknown error occured```"}})
+      if "stderr" in message and len(message["stderr"]) > 0:
+        blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"```" + message["stderr"] + "```"}})
+      else:
+        blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"```Unknown error occured```"}})
 
     client.web_client.chat_postMessage(
         channel=channel,
@@ -406,6 +409,8 @@ class SDPuppeteer(threading.Thread):
       state = "idle"
       process = None
       current_task = None
+      output = ""
+      error = ""
 
       while True:
         if state == "idle":
@@ -413,6 +418,7 @@ class SDPuppeteer(threading.Thread):
             msg_str = message_queue.get(timeout=1)
             msg = json.loads(msg_str)
             output = ""
+            error = ""
             prompt = msg["prompt"]
             current_task = msg
             cmd = [stable_diffusion_promt]
@@ -421,6 +427,7 @@ class SDPuppeteer(threading.Thread):
             try:
               out, err = process.communicate(input=prompt, timeout=1)
               output += out
+              error += err
             except sp.TimeoutExpired:
               pass
             state = "running"
@@ -435,6 +442,7 @@ class SDPuppeteer(threading.Thread):
             try:
               out, err = process.communicate(timeout=1)
               output += out
+              error += err
             except sp.TimeoutExpired:
               pass
 
@@ -444,6 +452,7 @@ class SDPuppeteer(threading.Thread):
               results = parse_output(output, clean_output)
               self.logger.debug("Results from SD: " + repr(results))
               current_task["state"] = state
+              current_task["stderr"] = error
               if len(results) == 0:
                 current_task["stdout"] = clean_output
                 if "image" in current_task:
