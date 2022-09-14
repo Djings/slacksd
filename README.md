@@ -60,6 +60,7 @@
 ## Install
   Install the stable diffusion from https://github.com/lstein/stable-diffusion as the bot
   uses its interface to render art.
+  It is tested to work with release-1.14.1 of lsteins stable-diffusion command line interface.
 
   I recommend setting up a python environment for the bot.
   

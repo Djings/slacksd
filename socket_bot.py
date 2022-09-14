@@ -391,7 +391,7 @@ def parse_output(out, clean_out):
   for l in resultstr.splitlines():
     if len(l.strip()) < 4:
       continue
-    m = re.search(r'^(.*): "(.*)" (.*)$', l)
+    m = re.search(r'^\[\d+\] (.*): "(.*)" (.*)$', l)
     if m is not None:
       img, prompt, args = m.groups()
       result.append({"image" : img, "prompt" : prompt, "args" : args, "stdout" : clean_out })
