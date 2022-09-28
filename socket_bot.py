@@ -52,7 +52,7 @@ def parse_rich_text_to_plain_text(rich_text):
 
 
 def sanatize_prompt(prompt):
-  allowed = string.ascii_letters + ':-.,/_ ' + string.digits
+  allowed = string.ascii_letters + '"()[];:-.,/_ ' + string.digits
   prompt = ''.join(filter(lambda x: x in allowed, prompt.encode('ASCII', "ignore").decode('ASCII')))
 
   forbidden_strings = [" -o", " --out"]
@@ -131,6 +131,24 @@ def split_blocks(long_string, prefix="", postfix=""):
   return blocks
 
 
+def remove_args(args, args_to_remove):
+  # e.g. args_to_remove = ["n", "U"]
+  olist = args.split("-")
+
+  new_args = []
+  for o in olist:
+    ok = True
+    for p in args_to_remove:
+      if o.startswith(p):
+        ok = False
+    if ok:
+      n = o
+      if len(o) > 0 and not o.endswith(' '):
+        n = n + " "
+
+      new_args.append(n)
+
+  return new_args
 
 def process(client: SocketModeClient, req: SocketModeRequest):
   logger.debug("Request type: {req.type}")
@@ -152,55 +170,30 @@ def process(client: SocketModeClient, req: SocketModeRequest):
     if task.startswith("similar"):
       logger.debug("Variations based on: {base}")
       args = base["args"]
-      new_args = []
-      remove_prefixes = ["-v", "-n"]
-      for a in args.split(" "):
-        ok = True
-        for p in remove_prefixes:
-          if a.startswith(p):
-            ok = False
-        if ok:
-          new_args.append(a)
+      new_args = remove_args(args, ["v", "n"])
       v = task[7:]
       if len(v.strip()) == 0:
         v = ".1"
-      new_args.append(f"-v{v}")
+      new_args.append(f"v{v}")
 
-      prompt = base["prompt"] + " " + " ".join(new_args)
+      prompt = base["prompt"] + " " + "-".join(new_args)
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts }
       msg["userid"] = userid
       message_queue.put(json.dumps(msg))
     elif task == "upscale2":
       logger.debug("Upscale based on: {base}")
       args = base["args"]
-      new_args = []
-      remove_prefixes = ["-n", "-U"]
-      for a in args.split(" "):
-        ok = True
-        for p in remove_prefixes:
-          if a.startswith(p):
-            ok = False
-        if ok:
-          new_args.append(a)
-      new_args.append("-U 2")
-      prompt = base["prompt"] + " " + " ".join(new_args)
+      new_args = remove_args(args, ["n", "U"])
+      new_args.append("U 2")
+      prompt = base["prompt"] + " " + "-".join(new_args)
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "in_thread" : True}
       msg["userid"] = userid
       message_queue.put(json.dumps(msg))
     elif task == "redo":
       logger.debug("Redo based on: {base}")
       args = base["args"]
-      new_args = []
-      remove_prefixes = ["-n", "-U", "-S"]
-      for a in args.split(" "):
-        ok = True
-        for p in remove_prefixes:
-          if a.startswith(p):
-            ok = False
-        if ok:
-          new_args.append(a)
-
-      prompt = base["prompt"] + " " + " ".join(new_args)
+      new_args = remove_args(args, ["n", "U", "S", "v", "V"])
+      prompt = base["prompt"] + " " + "-".join(new_args)
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts}
       msg["userid"] = userid
       message_queue.put(json.dumps(msg))
