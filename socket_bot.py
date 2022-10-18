@@ -52,7 +52,7 @@ def parse_rich_text_to_plain_text(rich_text):
 
 
 def sanatize_prompt(prompt):
-  allowed = string.ascii_letters + '"()[];:-.,/_ ' + string.digits
+  allowed = string.ascii_letters + '"!()[];:-.,/_ ' + string.digits
   prompt = ''.join(filter(lambda x: x in allowed, prompt.encode('ASCII', "ignore").decode('ASCII')))
 
   forbidden_strings = [" -o", " --out"]
@@ -189,14 +189,19 @@ def process(client: SocketModeClient, req: SocketModeRequest):
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "in_thread" : True}
       msg["userid"] = userid
       message_queue.put(json.dumps(msg))
-    elif task == "redo":
+    elif task.startswith("redo"):
+      v = task[4:]
+      if len(v.strip()) == 0:
+        v = 1
+
       logger.debug("Redo based on: {base}")
       args = base["args"]
       new_args = remove_args(args, ["n", "U", "S", "v", "V"])
       prompt = base["prompt"] + " " + "-".join(new_args)
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts}
       msg["userid"] = userid
-      message_queue.put(json.dumps(msg))
+      for x in range(v):
+        message_queue.put(json.dumps(msg))
 
 
   if req.type == "events_api":
@@ -319,15 +324,22 @@ def process_slack_reply(client : SocketModeClient, message, raw_message):
 
         blocks = list()
         blocks.append({ "type" : "header", "text" : { "type" : "plain_text", "text" : "Create more based on this prompt" }})
-        action_value = {"prompt" : prompt, "args" : args}
+        action_value = {"prompt" : prompt, "args" : args, "image" : imagefile}
         action_value_str = json.dumps(action_value)
         buttons = list()
         buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Very Similar" }, "action_id" : "similar.05", "value" : action_value_str})
         buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Similar" }, "action_id" : "similar.1", "value" : action_value_str})
         buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Somewhat Similar" }, "action_id" : "similar.25", "value" : action_value_str})
-        buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Redo" }, "action_id" : "redo", "value" : action_value_str})
-        buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Upscale 2x" }, "action_id" : "upscale2", "value" : action_value_str})
         blocks.append({ "type" : "actions", "elements" : buttons })
+        buttons = list()
+        buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Redo" }, "action_id" : "redo", "value" : action_value_str})
+        buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Redo 5x" }, "action_id" : "redo5", "value" : action_value_str})
+        blocks.append({ "type" : "actions", "elements" : buttons })
+        buttons = list()
+        buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Upscale 2x" }, "action_id" : "upscale2", "value" : action_value_str})
+        buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "SD 2x" }, "action_id" : "embiggen", "value" : action_value_str})
+        blocks.append({ "type" : "actions", "elements" : buttons })
+
         client.web_client.chat_postMessage(
             channel=chan,
             thread_ts=ts,
@@ -384,9 +396,11 @@ def parse_output(out, clean_out):
   for l in resultstr.splitlines():
     if len(l.strip()) < 4:
       continue
-    m = re.search(r'^\[\d+\] (.*): "(.*)" (.*)$', l)
+    m = re.search(r'^\[[\d\.]+\] (.*): (.*)(".*") (.*)$', l)
     if m is not None:
-      img, prompt, args = m.groups()
+      img, bang_cmd, prompt, args = m.groups()
+      if len(bang_cmd.strip()) > 0:
+        prompt = bang_cmd.strip() + " " + prompt
       result.append({"image" : img, "prompt" : prompt, "args" : args, "stdout" : clean_out })
 
   return result

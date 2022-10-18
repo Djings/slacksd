@@ -58,7 +58,7 @@
   
 
 ## Install
-  Install the stable diffusion from https://github.com/lstein/stable-diffusion as the bot
+  Install the stable diffusion from https://github.com/invoke-ai/InvokeAI as the bot
   uses its interface to render art.
   It is tested to work with release-1.14.1 of lsteins stable-diffusion command line interface.
 
