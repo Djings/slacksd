@@ -53,6 +53,7 @@ def parse_rich_text_to_plain_text(rich_text):
 
 def sanatize_prompt(prompt):
   allowed = string.ascii_letters + '"!()[];:-.,/_ ' + string.digits
+  prompt = prompt.replace('\n'," ").replace('\t', " ")
   prompt = ''.join(filter(lambda x: x in allowed, prompt.encode('ASCII', "ignore").decode('ASCII')))
 
   forbidden_strings = [" -o", " --out"]
@@ -176,7 +177,7 @@ def process(client: SocketModeClient, req: SocketModeRequest):
         v = ".1"
       new_args.append(f"v{v}")
 
-      prompt = base["prompt"] + " " + "-".join(new_args)
+      prompt = base["prompt"] + " " + "-".join(new_args);
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts }
       msg["userid"] = userid
       message_queue.put(json.dumps(msg))
@@ -185,19 +186,28 @@ def process(client: SocketModeClient, req: SocketModeRequest):
       args = base["args"]
       new_args = remove_args(args, ["n", "U"])
       new_args.append("U 2")
-      prompt = base["prompt"] + " " + "-".join(new_args)
+      prompt = base["prompt"] + " " + "-".join(new_args);
+      msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "in_thread" : True}
+      msg["userid"] = userid
+      message_queue.put(json.dumps(msg))
+    elif task == "embiggen":
+      logger.debug("Embiggen based on: {base}")
+      image = os.path.basename(base["image"])
+      prompt = f"!fix {image} --embiggen 2"
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "in_thread" : True}
       msg["userid"] = userid
       message_queue.put(json.dumps(msg))
     elif task.startswith("redo"):
       v = task[4:]
-      if len(v.strip()) == 0:
+      try:
+        v = int(v.strip())
+      except:
         v = 1
 
       logger.debug("Redo based on: {base}")
       args = base["args"]
       new_args = remove_args(args, ["n", "U", "S", "v", "V"])
-      prompt = base["prompt"] + " " + "-".join(new_args)
+      prompt = base["prompt"] + " " + "-".join(new_args);
       msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts}
       msg["userid"] = userid
       for x in range(v):
@@ -243,11 +253,14 @@ def process_slack_reply(client : SocketModeClient, message, raw_message):
 
   # if there is no image in message, paining failed
   if "image" not in message:
-    client.web_client.reactions_add(
-        name="boom",
-        channel=channel,
-        timestamp=ts,
-    )
+    try:
+      client.web_client.reactions_add(
+          name="boom",
+          channel=channel,
+          timestamp=ts,
+      )
+    except SlackApiError as e:
+      print("error caught:", e)
 
     blocks = []
     if len(full_output) > 0:
@@ -424,6 +437,7 @@ class SDPuppeteer(threading.Thread):
           try:
             msg_str = message_queue.get(timeout=1)
             msg = json.loads(msg_str)
+            print("Got message", msg)
             output = ""
             error = ""
             prompt = msg["prompt"]
